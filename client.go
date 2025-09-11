@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/bt-smart/btlog/btzap"
 	"github.com/bt-smart/btutil/crypto"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -22,6 +24,7 @@ type AuthClient struct {
 	publicKeyMap map[string]*rsa.PublicKey // kid -> 公钥映射，用于验证
 	lastUpdated  time.Time
 	mu           sync.RWMutex
+	btlog        *btzap.Logger
 	cron         *cron.Cron
 	cronID       cron.EntryID
 }
@@ -43,9 +46,9 @@ type PublicKeyResponse struct {
 
 // NewAuthClient 创建新的授权客户端
 // baseURL 应为服务基础URL，例如：http://your-auth-service-url
-func NewAuthClient(baseURL string) *AuthClient {
+func NewAuthClient(baseURL string, btlog *btzap.Logger) *AuthClient {
 	cronInstance := cron.New()
-	c := NewAuthClientWithCron(baseURL, cronInstance)
+	c := NewAuthClientWithCron(baseURL, cronInstance, btlog)
 
 	// 启动内部创建的cron实例
 	cronInstance.Start()
@@ -56,12 +59,21 @@ func NewAuthClient(baseURL string) *AuthClient {
 // NewAuthClientWithCron 使用外部注入的cron创建新的授权客户端
 // baseURL 应为服务基础URL，例如：http://your-auth-service-url
 // 注意：外部传入的cron实例需要由外部负责启动和停止
-func NewAuthClientWithCron(baseURL string, cronInstance *cron.Cron) *AuthClient {
+func NewAuthClientWithCron(baseURL string, cronInstance *cron.Cron, btlog *btzap.Logger) *AuthClient {
+	if btlog == nil {
+		logger, err := newLogger()
+		if err != nil {
+			panic("创建btlog失败: " + err.Error())
+		}
+		btlog = logger
+	}
+
 	c := &AuthClient{
 		baseURL:      baseURL,
 		publicKeys:   []PublicKey{},
 		publicKeyMap: make(map[string]*rsa.PublicKey),
 		lastUpdated:  time.Time{},
+		btlog:        btlog,
 		mu:           sync.RWMutex{},
 		cron:         cronInstance,
 	}
@@ -69,18 +81,18 @@ func NewAuthClientWithCron(baseURL string, cronInstance *cron.Cron) *AuthClient 
 	// 立即获取一次公钥
 	err := c.updatePublicKeys()
 	if err != nil {
-		log.Println(err.Error())
+		c.btlog.Logger.Error("第一次获取公钥失败: ", zap.String("err", err.Error()))
 	}
 
-	// 设置每天凌晨2点更新公钥
+	// 设置每天早上八点更新公钥
 	id, err := c.cron.AddFunc("0 8 * * *", func() {
 		err = c.updatePublicKeys()
 		if err != nil {
-			log.Println(err.Error())
+			c.btlog.Logger.Error("更新公钥失败: ", zap.String("err", err.Error()))
 		}
 	})
 	if err != nil {
-		log.Println(err.Error())
+		c.btlog.Logger.Error("添加定时任务失败: ", zap.String("err", err.Error()))
 	}
 	c.cronID = id
 
@@ -146,4 +158,43 @@ func (c *AuthClient) updatePublicKeys() error {
 	c.lastUpdated = time.Now()
 
 	return nil
+}
+
+func newLogger() (*btzap.Logger, error) {
+	// 创建共享的 HTTP 客户端
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			IdleConnTimeout:     90 * time.Second,
+		},
+		Timeout: 30 * time.Second,
+	}
+
+	cfg := &btzap.Config{
+		EnableConsole: true,              // 是否启用控制台日志输出
+		EnableFile:    false,             // 是否启用文件日志输出
+		EnableLoki:    true,              // 是否启用Loki日志输出
+		ConsoleLevel:  zapcore.InfoLevel, // 控制台输出的最小日志级别
+		FileLevel:     zapcore.InfoLevel, // 文件输出的最小日志级别
+		LokiLevel:     zapcore.InfoLevel, // loki输出的最小日志级别
+		EnableCaller:  true,              // 是否记录调用方信息
+		FilePath:      "./logs/app.log",  // 日志文件路径
+		MaxSize:       100,               // 日志文件最大大小(MB)
+		MaxBackups:    3,                 // 保留旧文件的最大个数
+		MaxAge:        28,                // 保留旧文件的最大天数
+		Compress:      true,              // 是否压缩旧文件
+		LokiConfig: btzap.LokiConfig{ // Loki配置
+			URL:        "http://192.168.98.214:3100",
+			BatchSize:  100,
+			Labels:     map[string]string{"service_name": "btlog-demo-dev"},
+			HTTPClient: httpClient,
+		},
+	}
+
+	logger, err := btzap.NewLogger(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return logger, nil
 }

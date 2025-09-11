@@ -3,6 +3,7 @@ module github.com/bt-smart/bt-auth-sdk
 go 1.25
 
 require (
+	github.com/bt-smart/btlog v1.3.0
 	github.com/bt-smart/btutil v1.1.3
 	github.com/gin-gonic/gin v1.10.1
 	github.com/golang-jwt/jwt/v5 v5.3.0
@@ -40,5 +41,6 @@ require (
 	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

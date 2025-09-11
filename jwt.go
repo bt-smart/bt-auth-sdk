@@ -1,4 +1,4 @@
-package bt_auth_sdk
+package btauth
 
 import (
 	"errors"

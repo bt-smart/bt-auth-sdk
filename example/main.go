@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	bt_auth_sdk "github.com/bt-smart/bt-auth-sdk"
+	btAuth "github.com/bt-smart/bt-auth-sdk"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"log"
@@ -37,7 +37,7 @@ func main() {
 	cronInstance := cron.New()
 
 	// 创建授权客户端（使用外部注入的cron）
-	authClient := bt_auth_sdk.NewAuthClientWithCron("http://localhost:7080", cronInstance)
+	authClient := btAuth.NewAuthClientWithCron("http://localhost:7080", cronInstance)
 
 	// 启动cron实例（使用外部注入时，需要手动启动）
 	cronInstance.Start()
@@ -45,8 +45,9 @@ func main() {
 	defer cronInstance.Stop()
 
 	// 创建授权中间件
-	authMiddleware := bt_auth_sdk.NewAuthMiddleware(authClient, redisClient)
+	authMiddleware := btAuth.NewAuthMiddleware(authClient, redisClient)
 
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 	g := r.Group("/auth-test", authMiddleware.AuthMiddleware())
 	{

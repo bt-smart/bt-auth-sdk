@@ -1,4 +1,4 @@
-package bt_auth_sdk
+package btauth
 
 import (
 	"crypto/rsa"
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/bt-smart/btutil/crypto"
 	"io"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -66,12 +67,21 @@ func NewAuthClientWithCron(baseURL string, cronInstance *cron.Cron) *AuthClient 
 	}
 
 	// 立即获取一次公钥
-	_ = c.updatePublicKeys()
+	err := c.updatePublicKeys()
+	if err != nil {
+		log.Println(err.Error())
+	}
 
 	// 设置每天凌晨2点更新公钥
-	id, _ := c.cron.AddFunc("0 8 * * *", func() {
-		_ = c.updatePublicKeys()
+	id, err := c.cron.AddFunc("0 8 * * *", func() {
+		err = c.updatePublicKeys()
+		if err != nil {
+			log.Println(err.Error())
+		}
 	})
+	if err != nil {
+		log.Println(err.Error())
+	}
 	c.cronID = id
 
 	// 注意：不在此处启动cron，由外部负责启动

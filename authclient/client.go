@@ -46,38 +46,37 @@ type PublicKeyResponse struct {
 	Data []PublicKey `json:"data"`
 }
 
-// NewAuthClient 创建新的授权客户端
-// baseURL 应为服务基础URL，例如：http://your-auth-service-url
-func NewAuthClient(baseURL string, btlog *btzap.Logger) *AuthClient {
-	cronInstance := cron.New()
-	c := NewAuthClientWithCron(baseURL, cronInstance, btlog)
-
-	// 启动内部创建的cron实例
-	cronInstance.Start()
-
-	return c
-}
-
-// NewAuthClientWithCron 使用外部注入的cron创建新的授权客户端
+// NewAuthClient 使用外部注入的cron创建新的授权客户端
 // baseURL 应为服务基础URL，例如：http://your-auth-service-url
 // 注意：外部传入的cron实例需要由外部负责启动和停止
-func NewAuthClientWithCron(baseURL string, cronInstance *cron.Cron, btlog *btzap.Logger) *AuthClient {
-	if btlog == nil {
+func NewAuthClient(baseURL string, redisClient *redis.Client, opts ...Option) *AuthClient {
+	c := &AuthClient{
+		baseURL:      baseURL,
+		redisClient:  redisClient,
+		publicKeys:   []PublicKey{},
+		publicKeyMap: make(map[string]*rsa.PublicKey),
+		lastUpdated:  time.Time{},
+		mu:           sync.RWMutex{},
+	}
+
+	// 应用可选配置
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	// 如果没有传 logger，就自己创建
+	if c.btlog == nil {
 		logger, err := newLogger()
 		if err != nil {
 			panic("创建btlog失败: " + err.Error())
 		}
-		btlog = logger
+		c.btlog = logger
 	}
 
-	c := &AuthClient{
-		baseURL:      baseURL,
-		publicKeys:   []PublicKey{},
-		publicKeyMap: make(map[string]*rsa.PublicKey),
-		lastUpdated:  time.Time{},
-		btlog:        btlog,
-		mu:           sync.RWMutex{},
-		cron:         cronInstance,
+	// 如果没有传 cron，就自己创建并启动
+	if c.cron == nil {
+		c.cron = cron.New()
+		c.cron.Start()
 	}
 
 	// 立即获取一次公钥

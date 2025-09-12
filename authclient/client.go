@@ -78,7 +78,7 @@ func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opt
 
 	// 如果没有传 httpclient 就自己创建
 	if c.httpclient == nil {
-		c.httpclient = httpclient.New(10)
+		c.httpclient = httpclient.New(10 * time.Second)
 	}
 
 	err := c.initToken()
@@ -121,7 +121,7 @@ func (ac *AuthClient) GetPublicKeyByKid(kid string) (*rsa.PublicKey, bool) {
 
 // updatePublicKeys 更新公钥列表
 func (ac *AuthClient) updatePublicKeys() error {
-	publicKeys, err := ac.getPublicKeys()
+	publicKeys, err := ac.GetPublicKeys()
 	if err != nil {
 		return err
 	}
@@ -199,4 +199,15 @@ func newLogger() (*btzap.Logger, error) {
 		return nil, err
 	}
 	return logger, nil
+}
+
+func (ac *AuthClient) getAuthHeaders() (map[string]string, error) {
+	tokenResp, err := ac.getToken() // 确保 token 有效
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{
+		"bt-token": tokenResp.Token,
+	}, nil
 }

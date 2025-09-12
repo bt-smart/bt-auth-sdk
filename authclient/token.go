@@ -47,7 +47,7 @@ func (ac *AuthClient) getToken() (*TokenResponse, error) {
 		AppId:  ac.AppId,
 		Secret: ac.Secret,
 	}
-	resp, err := ac.httpclient.PostJSON(ac.baseURL+"/post", req, nil)
+	resp, err := ac.httpclient.PostJSON(ac.baseURL+"/token", req, nil)
 	if err != nil {
 		return nil, fmt.Errorf("获取client token 失败: %w", err)
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/bt-smart/bt-auth-sdk/authclient"
 	"github.com/bt-smart/btlog/btzap"
 	"github.com/gin-gonic/gin"
@@ -42,14 +43,26 @@ func main() {
 	cronInstance := cron.New()
 
 	// 创建授权客户端（使用外部注入的cron）
-	ac := authclient.NewAuthClient("http://localhost:7080", redisClient, authclient.WithLogger(logger), authclient.WithCron(cronInstance))
+	ac := authclient.NewAuthClient("http://localhost:7080/auth", "cql23oyn", "jGAmJVizXQhq4eYDADJkUCUHO5omrhTX", redisClient, authclient.WithLogger(logger), authclient.WithCron(cronInstance))
 
 	// 启动cron实例（使用外部注入时，需要手动启动）
 	cronInstance.Start()
 	// 也可以选择停止整个cron实例
 	defer cronInstance.Stop()
 
-	// 创建授权中间件
+	publicKeys, err := ac.GetPublicKeys()
+	if err != nil {
+		println(err.Error())
+	}
+	user, err := ac.GetUserInfo(1)
+	if err != nil {
+		println(err.Error())
+	}
+	println("=========================================")
+	println("=========================================")
+	println("=========================================")
+	fmt.Printf("%+v\n", publicKeys) // 带字段名
+	fmt.Printf("%+v\n", user)       // 展示结构体字段和值
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()

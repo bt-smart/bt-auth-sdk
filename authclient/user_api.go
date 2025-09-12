@@ -26,8 +26,12 @@ type ApiUser struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-func (ac *AuthClient) getUserInfo(id uint64) (*ApiUser, error) {
-	resp, err := ac.httpclient.Get(fmt.Sprintf("%s/user/read/%d", ac.baseURL, id), nil)
+func (ac *AuthClient) GetUserInfo(id uint64) (*ApiUser, error) {
+	authHeader, err := ac.getAuthHeaders()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := ac.httpclient.Get(fmt.Sprintf("%s/user/read/%d", ac.baseURL, id), authHeader)
 	if err != nil {
 		return nil, fmt.Errorf("获取用户信息失败: %w", err)
 	}

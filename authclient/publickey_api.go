@@ -15,7 +15,7 @@ type PublicKey struct {
 	PEM string `json:"pem"`
 }
 
-func (ac *AuthClient) getPublicKeys() ([]PublicKey, error) {
+func (ac *AuthClient) GetPublicKeys() ([]PublicKey, error) {
 	resp, err := ac.httpclient.Get(ac.baseURL+"/public-key", nil)
 	if err != nil {
 		return nil, fmt.Errorf("获取公钥失败: %w", err)

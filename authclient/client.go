@@ -1,4 +1,4 @@
-package btauth
+package authclient
 
 import (
 	"crypto/rsa"
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/bt-smart/btlog/btzap"
 	"github.com/bt-smart/btutil/crypto"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"io"
@@ -20,13 +21,14 @@ import (
 // AuthClient 授权服务客户端
 type AuthClient struct {
 	baseURL      string                    // 基础URL
-	publicKeys   []PublicKey               // 原始公钥信息
+	publicKeys   []PublicKey               // 原始公钥信息 PEM的字符串
 	publicKeyMap map[string]*rsa.PublicKey // kid -> 公钥映射，用于验证
-	lastUpdated  time.Time
-	mu           sync.RWMutex
-	btlog        *btzap.Logger
-	cron         *cron.Cron
-	cronID       cron.EntryID
+	lastUpdated  time.Time                 // 公钥最后更新时间
+	mu           sync.RWMutex              // mu 用于保护共享资源的读写锁，确保并发安全访问。
+	btlog        *btzap.Logger             // btlog 是用于日志记录的btzap.Logger实例。
+	redisClient  *redis.Client             // redisClient 用于与Redis服务器进行交互的客户端实例。
+	cron         *cron.Cron                // cron 用于定时任务调度的Cron实例，支持定时更新公钥等任务。
+	cronID       cron.EntryID              // cronID 存储定时任务的唯一标识符，用于管理和操作特定的Cron任务。
 }
 
 // PublicKey 公钥信息
@@ -103,17 +105,17 @@ func NewAuthClientWithCron(baseURL string, cronInstance *cron.Cron, btlog *btzap
 
 // GetPublicKeyByKid 根据kid获取公钥
 // 返回对应kid的RSA公钥，如果未找到则返回错误
-func (c *AuthClient) GetPublicKeyByKid(kid string) (*rsa.PublicKey, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+func (ac *AuthClient) GetPublicKeyByKid(kid string) (*rsa.PublicKey, bool) {
+	ac.mu.RLock()
+	defer ac.mu.RUnlock()
 
-	pubKey, ok := c.publicKeyMap[kid]
+	pubKey, ok := ac.publicKeyMap[kid]
 	return pubKey, ok
 }
 
 // updatePublicKeys 更新公钥列表
-func (c *AuthClient) updatePublicKeys() error {
-	resp, err := http.Get(c.baseURL + "/auth/public-key")
+func (ac *AuthClient) updatePublicKeys() error {
+	resp, err := http.Get(ac.baseURL + "/auth/public-key")
 	if err != nil {
 		return fmt.Errorf("获取公钥失败: %w", err)
 	}
@@ -151,11 +153,11 @@ func (c *AuthClient) updatePublicKeys() error {
 		newPublicKeyMap[key.Kid] = pubKey
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.publicKeys = response.Data
-	c.publicKeyMap = newPublicKeyMap
-	c.lastUpdated = time.Now()
+	ac.mu.Lock()
+	defer ac.mu.Unlock()
+	ac.publicKeys = response.Data
+	ac.publicKeyMap = newPublicKeyMap
+	ac.lastUpdated = time.Now()
 
 	return nil
 }

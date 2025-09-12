@@ -1,10 +1,9 @@
-package btauth
+package authclient
 
 import (
 	"github.com/bt-smart/btutil/result"
 	"github.com/bt-smart/btutil/urlutil"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"net/http"
 )
 
@@ -15,22 +14,8 @@ const (
 	ContextClientIDKey = "clientId"
 )
 
-// AuthMiddleware 授权中间件
-type AuthMiddleware struct {
-	client      *AuthClient
-	redisClient *redis.Client
-}
-
-// NewAuthMiddleware 创建新的授权中间件
-func NewAuthMiddleware(client *AuthClient, redisClient *redis.Client) *AuthMiddleware {
-	return &AuthMiddleware{
-		client:      client,
-		redisClient: redisClient,
-	}
-}
-
-// AuthMiddleware 是一个 Gin 中间件，用于检查 zk-token
-func (m *AuthMiddleware) AuthMiddleware() gin.HandlerFunc {
+// Middleware 是一个 Gin 中间件，用于检查 请求头的token
+func (ac *AuthClient) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 获取请求的 URL
 		requestURL := c.Request.URL.Path
@@ -43,7 +28,7 @@ func (m *AuthMiddleware) AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// 校验jwt并从其中取出userId
-		claims, err := m.client.VerifyJWT(zkToken)
+		claims, err := ac.VerifyJWT(zkToken)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, result.FailWithCodeAndMsg(http.StatusUnauthorized, "not logged in"))
 			c.Abort()
@@ -52,7 +37,7 @@ func (m *AuthMiddleware) AuthMiddleware() gin.HandlerFunc {
 		// 校验tokenType
 		if claims.TokenType == TokenTypeUser {
 			// 校验用户对这个接口有没有权限
-			ok := m.checkUserPermission(requestURL, claims.UserId)
+			ok := ac.checkUserPermission(requestURL, claims.UserId)
 			if !ok {
 				c.JSON(http.StatusForbidden, result.FailWithCodeAndMsg(http.StatusForbidden, "permission denied"))
 				c.Abort()
@@ -62,7 +47,7 @@ func (m *AuthMiddleware) AuthMiddleware() gin.HandlerFunc {
 			c.Set(ContextUserIDKey, claims.UserId)
 		} else if claims.TokenType == TokenTypeClient {
 			// 校验客户端对这个接口有没有权限
-			ok := m.checkClientPermission(requestURL, claims.ClientId)
+			ok := ac.checkClientPermission(requestURL, claims.ClientId)
 			if !ok {
 				c.JSON(http.StatusForbidden, result.FailWithCodeAndMsg(http.StatusForbidden, "permission denied"))
 				c.Abort()
@@ -82,8 +67,8 @@ func (m *AuthMiddleware) AuthMiddleware() gin.HandlerFunc {
 }
 
 // 检查权限
-func (m *AuthMiddleware) checkUserPermission(url string, userId uint64) bool {
-	polices, err := GetUserCache(userId, m.redisClient)
+func (ac *AuthClient) checkUserPermission(url string, userId uint64) bool {
+	polices, err := GetUserCache(userId, ac.redisClient)
 	if err != nil || polices == nil {
 		return false
 	}
@@ -96,8 +81,8 @@ func (m *AuthMiddleware) checkUserPermission(url string, userId uint64) bool {
 	return false
 }
 
-func (m *AuthMiddleware) checkClientPermission(url string, clientId uint64) bool {
-	polices, err := GetClientCache(clientId, m.redisClient)
+func (ac *AuthClient) checkClientPermission(url string, clientId uint64) bool {
+	polices, err := GetClientCache(clientId, ac.redisClient)
 	if err != nil || polices == nil {
 		return false
 	}

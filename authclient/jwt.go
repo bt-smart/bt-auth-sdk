@@ -1,4 +1,4 @@
-package btauth
+package authclient
 
 import (
 	"errors"
@@ -27,7 +27,7 @@ type Claims struct {
 }
 
 // VerifyJWT 验证JWT令牌
-func (c *AuthClient) VerifyJWT(tokenStr string) (*Claims, error) {
+func (ac *AuthClient) VerifyJWT(tokenStr string) (*Claims, error) {
 	claims := &Claims{}
 
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
@@ -38,7 +38,7 @@ func (c *AuthClient) VerifyJWT(tokenStr string) (*Claims, error) {
 		if !ok {
 			return nil, errors.New("kid header missing or invalid")
 		}
-		pubKey, ok := c.GetPublicKeyByKid(kid)
+		pubKey, ok := ac.GetPublicKeyByKid(kid)
 		if !ok {
 			return nil, fmt.Errorf("unknown kid: %s", kid)
 		}

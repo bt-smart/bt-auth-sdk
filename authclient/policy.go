@@ -1,4 +1,4 @@
-package btauth
+package authclient
 
 import (
 	"context"

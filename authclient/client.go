@@ -2,15 +2,13 @@ package authclient
 
 import (
 	"crypto/rsa"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/bt-smart/btlog/btzap"
 	"github.com/bt-smart/btutil/crypto"
+	"github.com/bt-smart/btutil/httpclient"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -21,37 +19,34 @@ import (
 // AuthClient 授权服务客户端
 type AuthClient struct {
 	baseURL      string                    // 基础URL
+	AppId        string                    `json:"appId"`  // AppId
+	Secret       string                    `json:"secret"` // 秘钥
 	publicKeys   []PublicKey               // 原始公钥信息 PEM的字符串
 	publicKeyMap map[string]*rsa.PublicKey // kid -> 公钥映射，用于验证
 	lastUpdated  time.Time                 // 公钥最后更新时间
 	mu           sync.RWMutex              // mu 用于保护共享资源的读写锁，确保并发安全访问。
 	btlog        *btzap.Logger             // btlog 是用于日志记录的btzap.Logger实例。
 	redisClient  *redis.Client             // redisClient 用于与Redis服务器进行交互的客户端实例。
+	httpclient   *httpclient.Client        // http 客户端
 	cron         *cron.Cron                // cron 用于定时任务调度的Cron实例，支持定时更新公钥等任务。
 	cronID       cron.EntryID              // cronID 存储定时任务的唯一标识符，用于管理和操作特定的Cron任务。
 }
 
-// PublicKey 公钥信息
-type PublicKey struct {
-	Kid string `json:"kid"`
-	Alg string `json:"alg"`
-	Use string `json:"use"`
-	PEM string `json:"pem"`
-}
-
-// PublicKeyResponse 公钥接口响应
-type PublicKeyResponse struct {
-	Code int         `json:"code"`
-	Msg  string      `json:"msg"`
-	Data []PublicKey `json:"data"`
+// Result 通用响应
+type Result[T any] struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data T      `json:"data"`
 }
 
 // NewAuthClient 使用外部注入的cron创建新的授权客户端
 // baseURL 应为服务基础URL，例如：http://your-auth-service-url
 // 注意：外部传入的cron实例需要由外部负责启动和停止
-func NewAuthClient(baseURL string, redisClient *redis.Client, opts ...Option) *AuthClient {
+func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opts ...Option) *AuthClient {
 	c := &AuthClient{
 		baseURL:      baseURL,
+		AppId:        appId,
+		Secret:       secret,
 		redisClient:  redisClient,
 		publicKeys:   []PublicKey{},
 		publicKeyMap: make(map[string]*rsa.PublicKey),
@@ -77,6 +72,11 @@ func NewAuthClient(baseURL string, redisClient *redis.Client, opts ...Option) *A
 	if c.cron == nil {
 		c.cron = cron.New()
 		c.cron.Start()
+	}
+
+	// 如果没有传 httpclient 就自己创建
+	if c.httpclient == nil {
+		c.httpclient = httpclient.New(10)
 	}
 
 	// 立即获取一次公钥
@@ -114,37 +114,14 @@ func (ac *AuthClient) GetPublicKeyByKid(kid string) (*rsa.PublicKey, bool) {
 
 // updatePublicKeys 更新公钥列表
 func (ac *AuthClient) updatePublicKeys() error {
-	resp, err := http.Get(ac.baseURL + "/auth/public-key")
+	publicKeys, err := ac.getPublicKeys()
 	if err != nil {
-		return fmt.Errorf("获取公钥失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("获取公钥失败，状态码: %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("读取响应失败: %w", err)
-	}
-
-	var response PublicKeyResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return fmt.Errorf("解析响应失败: %w", err)
-	}
-
-	if response.Code != 0 {
-		return fmt.Errorf("获取公钥失败: %s", response.Msg)
-	}
-
-	if len(response.Data) == 0 {
-		return errors.New("获取公钥失败: 公钥列表为空")
+		return err
 	}
 
 	// 解析公钥并构建映射
 	newPublicKeyMap := make(map[string]*rsa.PublicKey)
-	for _, key := range response.Data {
+	for _, key := range publicKeys {
 		pubKey, err := crypto.ParseRSAPublicKeyFromPEM(key.PEM)
 		if err != nil {
 			return fmt.Errorf("解析公钥失败 (kid=%s): %w", key.Kid, err)
@@ -154,7 +131,7 @@ func (ac *AuthClient) updatePublicKeys() error {
 
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
-	ac.publicKeys = response.Data
+	ac.publicKeys = publicKeys
 	ac.publicKeyMap = newPublicKeyMap
 	ac.lastUpdated = time.Now()
 

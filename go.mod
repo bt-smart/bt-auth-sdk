@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/bt-smart/btlog v1.3.0
-	github.com/bt-smart/btutil v1.1.3
+	github.com/bt-smart/btutil v1.1.5
 	github.com/gin-gonic/gin v1.10.1
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/redis/go-redis/v9 v9.14.0

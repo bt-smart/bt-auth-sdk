@@ -22,7 +22,7 @@ func (ac *AuthClient) getPublicKeys() ([]PublicKey, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("获取公钥失败，状态码: %d", resp.StatusCode)
+		return nil, fmt.Errorf("获取公钥失败 状态码: %d", resp.StatusCode)
 	}
 
 	var result Result[[]PublicKey]

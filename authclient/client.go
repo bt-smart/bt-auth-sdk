@@ -2,6 +2,7 @@ package authclient
 
 import (
 	"crypto/rsa"
+	"errors"
 	"fmt"
 	"github.com/bt-smart/btlog/btzap"
 	"github.com/bt-smart/btutil/crypto"
@@ -23,6 +24,7 @@ type AuthClient struct {
 	Secret       string                    `json:"secret"` // 秘钥
 	publicKeys   []PublicKey               // 原始公钥信息 PEM的字符串
 	publicKeyMap map[string]*rsa.PublicKey // kid -> 公钥映射，用于验证
+	token        *TokenResponse            // 客户端访问token
 	lastUpdated  time.Time                 // 公钥最后更新时间
 	mu           sync.RWMutex              // mu 用于保护共享资源的读写锁，确保并发安全访问。
 	btlog        *btzap.Logger             // btlog 是用于日志记录的btzap.Logger实例。
@@ -79,8 +81,13 @@ func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opt
 		c.httpclient = httpclient.New(10)
 	}
 
+	err := c.initToken()
+	if err != nil {
+		panic("初始化token失败" + err.Error())
+	}
+
 	// 立即获取一次公钥
-	err := c.updatePublicKeys()
+	err = c.updatePublicKeys()
 	if err != nil {
 		c.btlog.Logger.Error("第一次获取公钥失败: ", zap.String("err", err.Error()))
 	}
@@ -134,6 +141,23 @@ func (ac *AuthClient) updatePublicKeys() error {
 	ac.publicKeys = publicKeys
 	ac.publicKeyMap = newPublicKeyMap
 	ac.lastUpdated = time.Now()
+
+	return nil
+}
+
+func (ac *AuthClient) initToken() error {
+	ok, err := ac.checkHealth()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("健康检查失败")
+	}
+
+	_, err = ac.getToken()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

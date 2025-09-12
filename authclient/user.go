@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type UserClient struct {
+	ac *AuthClient
+}
+
 type ApiUser struct {
 	//主键
 	ID uint64 `json:"id"`
@@ -26,12 +30,12 @@ type ApiUser struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-func (ac *AuthClient) GetUserInfo(id uint64) (*ApiUser, error) {
-	authHeader, err := ac.getAuthHeaders()
+func (uc *UserClient) Info(id uint64) (*ApiUser, error) {
+	authHeader, err := uc.ac.getAuthHeaders()
 	if err != nil {
 		return nil, err
 	}
-	resp, err := ac.httpclient.Get(fmt.Sprintf("%s/user/read/%d", ac.baseURL, id), authHeader)
+	resp, err := uc.ac.httpclient.Get(fmt.Sprintf("%s/user/read/%d", uc.ac.baseURL, id), authHeader)
 	if err != nil {
 		return nil, fmt.Errorf("获取用户信息失败: %w", err)
 	}

@@ -17,6 +17,8 @@ import (
 )
 
 func main() {
+	// ============================================= redis =====================================================
+	// ============================================= redis =====================================================
 	// 创建Redis客户端
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     "192.168.98.214:6379",
@@ -33,40 +35,44 @@ func main() {
 		log.Fatalf("连接Redis失败: %v", err)
 	}
 
+	// ============================================= logger =====================================================
+	// ============================================= logger =====================================================
+
 	logger, err := newLogger()
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
 
+	// ============================================= 创建cron实例 =====================================================
+	// ============================================= 创建cron实例 =====================================================
 	// 创建cron实例
 	cronInstance := cron.New()
 
+	// ============================================= 初始化authclient =====================================================
+	// ============================================= 初始化authclient =====================================================
 	// 创建授权客户端（使用外部注入的cron）
-	ac := authclient.NewAuthClient("http://localhost:7080/auth", "cql23oyn", "jGAmJVizXQhq4eYDADJkUCUHO5omrhTX", redisClient, authclient.WithLogger(logger), authclient.WithCron(cronInstance))
+	client := authclient.NewAuthClient("http://localhost:7080/auth", "cql23oyn", "jGAmJVizXQhq4eYDADJkUCUHO5omrhTX", redisClient, authclient.WithLogger(logger), authclient.WithCron(cronInstance))
 
 	// 启动cron实例（使用外部注入时，需要手动启动）
 	cronInstance.Start()
 	// 也可以选择停止整个cron实例
 	defer cronInstance.Stop()
 
-	publicKeys, err := ac.GetPublicKeys()
-	if err != nil {
-		println(err.Error())
-	}
-	user, err := ac.GetUserInfo(1)
-	if err != nil {
-		println(err.Error())
-	}
-	println("=========================================")
-	println("=========================================")
-	println("=========================================")
-	fmt.Printf("%+v\n", publicKeys) // 带字段名
-	fmt.Printf("%+v\n", user)       // 展示结构体字段和值
+	// ============================================= 获取用户 =====================================================
+	// ============================================= 获取用户 =====================================================
 
+	user, err := client.User.Info(1)
+	if err != nil {
+		println(err.Error())
+	}
+	fmt.Printf("%+v\n", user) // 展示结构体字段和值
+
+	// ============================================= 测试gin =====================================================
+	// ============================================= 测试gin =====================================================
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
-	g := r.Group("/auth-test", ac.Middleware())
+	g := r.Group("/auth-test", client.Middleware())
 	{
 		g.GET("/test", func(c *gin.Context) {
 			c.JSON(http.StatusOK, "auth success")

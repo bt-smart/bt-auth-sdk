@@ -32,6 +32,9 @@ type AuthClient struct {
 	httpclient   *httpclient.Client        // http 客户端
 	cron         *cron.Cron                // cron 用于定时任务调度的Cron实例，支持定时更新公钥等任务。
 	cronID       cron.EntryID              // cronID 存储定时任务的唯一标识符，用于管理和操作特定的Cron任务。
+
+	// 嵌入子模块-------------------------------------------
+	User *UserClient // 用户模块
 }
 
 // Result 通用响应
@@ -45,7 +48,7 @@ type Result[T any] struct {
 // baseURL 应为服务基础URL，例如：http://your-auth-service-url
 // 注意：外部传入的cron实例需要由外部负责启动和停止
 func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opts ...Option) *AuthClient {
-	c := &AuthClient{
+	ac := &AuthClient{
 		baseURL:      baseURL,
 		AppId:        appId,
 		Secret:       secret,
@@ -56,57 +59,60 @@ func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opt
 		mu:           sync.RWMutex{},
 	}
 
+	// 子模块
+	ac.User = &UserClient{ac: ac}
+
 	// 应用可选配置
 	for _, opt := range opts {
-		opt(c)
+		opt(ac)
 	}
 
 	// 如果没有传 logger，就自己创建
-	if c.btlog == nil {
+	if ac.btlog == nil {
 		logger, err := newLogger()
 		if err != nil {
 			panic("创建btlog失败: " + err.Error())
 		}
-		c.btlog = logger
+		ac.btlog = logger
 	}
 
 	// 如果没有传 cron，就自己创建并启动
-	if c.cron == nil {
-		c.cron = cron.New()
-		c.cron.Start()
+	if ac.cron == nil {
+		ac.cron = cron.New()
+		ac.cron.Start()
 	}
 
 	// 如果没有传 httpclient 就自己创建
-	if c.httpclient == nil {
-		c.httpclient = httpclient.New(10 * time.Second)
+	if ac.httpclient == nil {
+		ac.httpclient = httpclient.New(10 * time.Second)
 	}
 
-	err := c.initToken()
+	err := ac.initToken()
 	if err != nil {
 		panic("初始化token失败" + err.Error())
 	}
 
 	// 立即获取一次公钥
-	err = c.updatePublicKeys()
+	err = ac.updatePublicKeys()
 	if err != nil {
-		c.btlog.Logger.Error("第一次获取公钥失败: ", zap.String("err", err.Error()))
+		ac.btlog.Logger.Error("第一次获取公钥失败: ", zap.String("err", err.Error()))
 	}
 
 	// 设置每天早上八点更新公钥
-	id, err := c.cron.AddFunc("0 8 * * *", func() {
-		err = c.updatePublicKeys()
+	id, err := ac.cron.AddFunc("0 8 * * *", func() {
+		err = ac.updatePublicKeys()
 		if err != nil {
-			c.btlog.Logger.Error("更新公钥失败: ", zap.String("err", err.Error()))
+			ac.btlog.Logger.Error("更新公钥失败: ", zap.String("err", err.Error()))
 		}
 	})
 	if err != nil {
-		c.btlog.Logger.Error("添加定时任务失败: ", zap.String("err", err.Error()))
+		ac.btlog.Logger.Error("添加定时任务失败: ", zap.String("err", err.Error()))
 	}
-	c.cronID = id
+	ac.cronID = id
 
 	// 注意：不在此处启动cron，由外部负责启动
 
-	return c
+	return ac
 }
 
 // GetPublicKeyByKid 根据kid获取公钥

@@ -21,14 +21,14 @@ func (ac *AuthClient) Middleware() gin.HandlerFunc {
 		authHeader := c.GetHeader("Authorization")
 		// 如果没有传 zk-token 返回 401 Unauthorized
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, result.FailWithCodeAndMsg(http.StatusUnauthorized, "not logged in"))
+			c.JSON(http.StatusUnauthorized, result.FailWithCodeAndMsg(http.StatusUnauthorized, "missing authorization header"))
 			c.Abort()
 			return
 		}
 
 		const prefix = "Bearer "
 		if !strings.HasPrefix(authHeader, prefix) {
-			c.JSON(http.StatusUnauthorized, gin.H{"msg": "认证头格式错误"})
+			c.JSON(http.StatusUnauthorized, result.FailWithCodeAndMsg(http.StatusUnauthorized, "invalid authorization header format"))
 			c.Abort()
 			return
 		}

@@ -52,7 +52,7 @@ func main() {
 	// ============================================= 初始化authclient =====================================================
 	// ============================================= 初始化authclient =====================================================
 	// 创建授权客户端（使用外部注入的cron）
-	client := authclient.NewAuthClient("http://localhost:7080/auth", "cql23oyn", "jGAmJVizXQhq4eYDADJkUCUHO5omrhTX", redisClient, authclient.WithLogger(logger), authclient.WithCron(cronInstance))
+	client := authclient.NewAuthClient("http://192.168.98.214:7080/auth", "cql23oyn", "jGAmJVizXQhq4eYDADJkUCUHO5omrhTX", redisClient, authclient.WithLogger(logger), authclient.WithCron(cronInstance))
 
 	// 启动cron实例（使用外部注入时，需要手动启动）
 	cronInstance.Start()

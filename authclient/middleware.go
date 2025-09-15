@@ -5,6 +5,7 @@ import (
 	"github.com/bt-smart/btutil/urlutil"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -17,23 +18,35 @@ const (
 // Middleware 是一个 Gin 中间件，用于检查 请求头的token
 func (ac *AuthClient) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 获取请求的 URL
-		requestURL := c.Request.URL.Path
-		zkToken := c.GetHeader("bt-token")
+		authHeader := c.GetHeader("Authorization")
 		// 如果没有传 zk-token 返回 401 Unauthorized
-		if zkToken == "" {
+		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, result.FailWithCodeAndMsg(http.StatusUnauthorized, "not logged in"))
 			c.Abort()
 			return
 		}
 
-		// 校验jwt并从其中取出userId
-		claims, err := ac.VerifyJWT(zkToken)
+		const prefix = "Bearer "
+		if !strings.HasPrefix(authHeader, prefix) {
+			c.JSON(http.StatusUnauthorized, gin.H{"msg": "认证头格式错误"})
+			c.Abort()
+			return
+		}
+
+		// 提取 token
+		token := strings.TrimPrefix(authHeader, prefix)
+
+		// 校验jwt
+		claims, err := ac.VerifyJWT(token)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, result.FailWithCodeAndMsg(http.StatusUnauthorized, "not logged in"))
 			c.Abort()
 			return
 		}
+
+		// 获取请求的 URL
+		requestURL := c.Request.URL.Path
+
 		// 校验tokenType
 		if claims.TokenType == TokenTypeUser {
 			// 校验用户对这个接口有没有权限
@@ -53,7 +66,7 @@ func (ac *AuthClient) Middleware() gin.HandlerFunc {
 				c.Abort()
 				return
 			}
-			// 将 userId 放入请求上下文
+			// 将 clientId 放入请求上下文
 			c.Set(ContextClientIDKey, claims.ClientId)
 		} else {
 			c.JSON(http.StatusUnauthorized, result.FailWithCodeAndMsg(http.StatusUnauthorized, "not logged in"))

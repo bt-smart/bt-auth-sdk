@@ -214,6 +214,6 @@ func (ac *AuthClient) getAuthHeaders() (map[string]string, error) {
 	}
 
 	return map[string]string{
-		"bt-token": tokenResp.Token,
+		"Authorization": "Bearer " + tokenResp.Token,
 	}, nil
 }

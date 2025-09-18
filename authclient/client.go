@@ -8,8 +8,6 @@ import (
 	"github.com/bt-smart/btutil/crypto"
 	"github.com/bt-smart/btutil/httpclient"
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap/zapcore"
-	"net/http"
 	"sync"
 	"time"
 )
@@ -41,7 +39,7 @@ type Result[T any] struct {
 
 // NewAuthClient 创建授权客户端
 // baseURL 应为服务基础URL，例如：http://localhost:7080/auth
-func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opts ...Option) (*AuthClient, error) {
+func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, logger *btzap.Logger, opts ...Option) (*AuthClient, error) {
 	ac := &AuthClient{
 		baseURL:      baseURL,
 		AppId:        appId,
@@ -51,6 +49,7 @@ func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opt
 		publicKeyMap: make(map[string]*rsa.PublicKey),
 		lastUpdated:  time.Time{},
 		mu:           sync.RWMutex{},
+		btlog:        logger,
 	}
 
 	// 子模块
@@ -61,13 +60,9 @@ func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opt
 		opt(ac)
 	}
 
-	// 如果没有传 logger，就自己创建
+	// 如果没有传 logger 就报错
 	if ac.btlog == nil {
-		logger, err := newLogger()
-		if err != nil {
-			return nil, errors.New("创建btlog失败: " + err.Error())
-		}
-		ac.btlog = logger
+		return nil, errors.New("logger == nil")
 	}
 
 	// 如果没有传 httpclient 就自己创建
@@ -146,45 +141,6 @@ func (ac *AuthClient) initToken() error {
 	}
 
 	return nil
-}
-
-func newLogger() (*btzap.Logger, error) {
-	// 创建共享的 HTTP 客户端
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 100,
-			IdleConnTimeout:     90 * time.Second,
-		},
-		Timeout: 30 * time.Second,
-	}
-
-	cfg := &btzap.Config{
-		EnableConsole: true,              // 是否启用控制台日志输出
-		EnableFile:    false,             // 是否启用文件日志输出
-		EnableLoki:    true,              // 是否启用Loki日志输出
-		ConsoleLevel:  zapcore.InfoLevel, // 控制台输出的最小日志级别
-		FileLevel:     zapcore.InfoLevel, // 文件输出的最小日志级别
-		LokiLevel:     zapcore.InfoLevel, // loki输出的最小日志级别
-		EnableCaller:  true,              // 是否记录调用方信息
-		FilePath:      "./logs/app.log",  // 日志文件路径
-		MaxSize:       100,               // 日志文件最大大小(MB)
-		MaxBackups:    3,                 // 保留旧文件的最大个数
-		MaxAge:        28,                // 保留旧文件的最大天数
-		Compress:      true,              // 是否压缩旧文件
-		LokiConfig: btzap.LokiConfig{ // Loki配置
-			URL:        "http://192.168.98.214:3100",
-			BatchSize:  100,
-			Labels:     map[string]string{"service_name": "btlog-demo-dev"},
-			HTTPClient: httpClient,
-		},
-	}
-
-	logger, err := btzap.NewLogger(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return logger, nil
 }
 
 func (ac *AuthClient) getAuthHeaders() (map[string]string, error) {

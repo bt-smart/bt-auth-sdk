@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/bt-smart/bt-auth-sdk/authclient"
+	"github.com/bt-smart/bt-auth-sdk/btauth"
 	"github.com/bt-smart/btlog/btzap"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -46,7 +46,7 @@ func main() {
 	// ============================================= 初始化authclient =====================================================
 	// ============================================= 初始化authclient =====================================================
 	// 创建授权客户端（使用外部注入的cron）
-	client, err := authclient.NewAuthClient("http://192.168.98.214:7080/auth", "cql23oyn", "jGAmJVizXQhq4eYDADJkUCUHO5omrhTX", redisClient, logger)
+	client, err := btauth.NewAuthClient("http://192.168.98.214:7080/auth", "cql23oyn", "jGAmJVizXQhq4eYDADJkUCUHO5omrhTX", redisClient, logger)
 	if err != nil {
 		log.Println(err.Error())
 	}

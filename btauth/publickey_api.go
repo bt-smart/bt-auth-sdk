@@ -1,4 +1,4 @@
-package authclient
+package btauth
 
 import (
 	"encoding/json"

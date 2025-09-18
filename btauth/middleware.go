@@ -1,4 +1,4 @@
-package authclient
+package btauth
 
 import (
 	"github.com/bt-smart/btutil/result"

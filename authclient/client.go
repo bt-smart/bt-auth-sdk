@@ -8,7 +8,6 @@ import (
 	"github.com/bt-smart/btutil/crypto"
 	"github.com/bt-smart/btutil/httpclient"
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"net/http"
 	"sync"
@@ -42,7 +41,7 @@ type Result[T any] struct {
 
 // NewAuthClient 创建授权客户端
 // baseURL 应为服务基础URL，例如：http://localhost:7080/auth
-func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opts ...Option) *AuthClient {
+func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opts ...Option) (*AuthClient, error) {
 	ac := &AuthClient{
 		baseURL:      baseURL,
 		AppId:        appId,
@@ -66,7 +65,7 @@ func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opt
 	if ac.btlog == nil {
 		logger, err := newLogger()
 		if err != nil {
-			panic("创建btlog失败: " + err.Error())
+			return nil, errors.New("创建btlog失败: " + err.Error())
 		}
 		ac.btlog = logger
 	}
@@ -79,16 +78,16 @@ func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opt
 	// 初始化 token
 	err := ac.initToken()
 	if err != nil {
-		panic("初始化token失败" + err.Error())
+		return nil, errors.New("初始化token失败: " + err.Error())
 	}
 
 	// 立即获取一次公钥
 	err = ac.updatePublicKeys()
 	if err != nil {
-		ac.btlog.Logger.Panic("第一次获取公钥失败: ", zap.String("err", err.Error()))
+		return nil, errors.New("第一次获取公钥失败: " + err.Error())
 	}
 
-	return ac
+	return ac, nil
 }
 
 // RefreshPublicKeys 外部调度调用刷新

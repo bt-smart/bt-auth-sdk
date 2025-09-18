@@ -13,8 +13,6 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
-	"github.com/robfig/cron/v3"
 )
 
 // AuthClient 授权服务客户端
@@ -30,8 +28,6 @@ type AuthClient struct {
 	btlog        *btzap.Logger             // btlog 是用于日志记录的btzap.Logger实例。
 	redisClient  *redis.Client             // redisClient 用于与Redis服务器进行交互的客户端实例。
 	httpclient   *httpclient.Client        // http 客户端
-	cron         *cron.Cron                // cron 用于定时任务调度的Cron实例，支持定时更新公钥等任务。
-	cronID       cron.EntryID              // cronID 存储定时任务的唯一标识符，用于管理和操作特定的Cron任务。
 
 	// 嵌入子模块-------------------------------------------
 	User *UserClient // 用户模块
@@ -44,9 +40,8 @@ type Result[T any] struct {
 	Data T      `json:"data"`
 }
 
-// NewAuthClient 使用外部注入的cron创建新的授权客户端
-// baseURL 应为服务基础URL，例如：http://your-auth-service-url
-// 注意：外部传入的cron实例需要由外部负责启动和停止
+// NewAuthClient 创建授权客户端
+// baseURL 应为服务基础URL，例如：http://localhost:7080/auth
 func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opts ...Option) *AuthClient {
 	ac := &AuthClient{
 		baseURL:      baseURL,
@@ -76,17 +71,12 @@ func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opt
 		ac.btlog = logger
 	}
 
-	// 如果没有传 cron，就自己创建并启动
-	if ac.cron == nil {
-		ac.cron = cron.New()
-		ac.cron.Start()
-	}
-
 	// 如果没有传 httpclient 就自己创建
 	if ac.httpclient == nil {
 		ac.httpclient = httpclient.New(10 * time.Second)
 	}
 
+	// 初始化 token
 	err := ac.initToken()
 	if err != nil {
 		panic("初始化token失败" + err.Error())
@@ -95,24 +85,15 @@ func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, opt
 	// 立即获取一次公钥
 	err = ac.updatePublicKeys()
 	if err != nil {
-		ac.btlog.Logger.Error("第一次获取公钥失败: ", zap.String("err", err.Error()))
+		ac.btlog.Logger.Panic("第一次获取公钥失败: ", zap.String("err", err.Error()))
 	}
-
-	// 设置每天早上八点更新公钥
-	id, err := ac.cron.AddFunc("0 8 * * *", func() {
-		err = ac.updatePublicKeys()
-		if err != nil {
-			ac.btlog.Logger.Error("更新公钥失败: ", zap.String("err", err.Error()))
-		}
-	})
-	if err != nil {
-		ac.btlog.Logger.Error("添加定时任务失败: ", zap.String("err", err.Error()))
-	}
-	ac.cronID = id
-
-	// 注意：不在此处启动cron，由外部负责启动
 
 	return ac
+}
+
+// RefreshPublicKeys 外部调度调用刷新
+func (ac *AuthClient) RefreshPublicKeys() error {
+	return ac.updatePublicKeys()
 }
 
 // GetPublicKeyByKid 根据kid获取公钥

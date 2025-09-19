@@ -8,7 +8,7 @@ import (
 )
 
 type TokenReq struct {
-	AppId  string `json:"appId"`  // AppId
+	AppKey string `json:"appKey"` // AppKey
 	Secret string `json:"secret"` // 秘钥
 }
 
@@ -44,7 +44,7 @@ func (ac *AuthClient) getToken() (*TokenResponse, error) {
 
 	// 真的过期了，去请求新 token
 	req := &TokenReq{
-		AppId:  ac.AppId,
+		AppKey: ac.AppKey,
 		Secret: ac.Secret,
 	}
 	resp, err := ac.httpclient.PostJSON(ac.baseURL+"/token", req, nil)

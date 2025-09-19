@@ -46,7 +46,7 @@ func main() {
 	// ============================================= 初始化authclient =====================================================
 	// ============================================= 初始化authclient =====================================================
 	// 创建授权客户端（使用外部注入的cron）
-	client, err := btauth.NewAuthClient("http://192.168.98.214:7080/auth", "cql23oyn", "jGAmJVizXQhq4eYDADJkUCUHO5omrhTX", redisClient, logger)
+	client, err := btauth.NewAuthClient("http://localhost:7080/auth", "ap2vhcad", "e1gWAk08riutTvdNHmxgqIh4Kn02IocP", redisClient, logger)
 	if err != nil {
 		log.Println(err.Error())
 	}

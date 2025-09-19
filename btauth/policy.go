@@ -15,18 +15,18 @@ func UserPolicyKey(userID uint64) string {
 	return fmt.Sprintf("%s%d", userPolicyPrefix, userID)
 }
 
-// 客户端权限策略缓存
-const clientPolicyPrefix = "client:policies:"
+// 应用权限策略缓存
+const appPolicyPrefix = "app:policies:"
 
-func ClientPolicyKey(clientId uint64) string {
-	return fmt.Sprintf("%s%d", clientPolicyPrefix, clientId)
+func AppPolicyKey(clientId uint64) string {
+	return fmt.Sprintf("%s%d", appPolicyPrefix, clientId)
 }
 
-func GetClientCache(clientId uint64, c *redis.Client) ([]string, error) {
+func GetAppCache(appId uint64, c *redis.Client) ([]string, error) {
 	var ps []string
-	err := redisutil.GetStruct(c, context.Background(), ClientPolicyKey(clientId), &ps)
+	err := redisutil.GetStruct(c, context.Background(), AppPolicyKey(appId), &ps)
 	if err != nil {
-		return ps, errors.New("get client cache fail")
+		return ps, errors.New("get app cache fail")
 	}
 	return ps, nil
 }

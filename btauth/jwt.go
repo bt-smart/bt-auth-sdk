@@ -12,8 +12,8 @@ import (
 type TokenType string
 
 const (
-	TokenTypeUser   TokenType = "u"
-	TokenTypeClient TokenType = "c"
+	TokenTypeUser TokenType = "u"
+	TokenTypeApp  TokenType = "a"
 )
 
 const KID = "kid"
@@ -21,7 +21,7 @@ const KID = "kid"
 // Claims JWT声明结构体
 type Claims struct {
 	UserId    uint64    `json:"uid,omitempty"`
-	ClientId  uint64    `json:"cid,omitempty"`
+	AppId     uint64    `json:"aid,omitempty"`
 	TokenType TokenType `json:"tkt,omitempty"`
 	jwt.RegisteredClaims
 }

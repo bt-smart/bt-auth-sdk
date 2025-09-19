@@ -15,7 +15,7 @@ import (
 // AuthClient 授权服务客户端
 type AuthClient struct {
 	baseURL      string                    // 基础URL
-	AppId        string                    `json:"appId"`  // AppId
+	AppKey       string                    `json:"appKey"` // AppKey
 	Secret       string                    `json:"secret"` // 秘钥
 	publicKeys   []PublicKey               // 原始公钥信息 PEM的字符串
 	publicKeyMap map[string]*rsa.PublicKey // kid -> 公钥映射，用于验证
@@ -39,10 +39,10 @@ type Result[T any] struct {
 
 // NewAuthClient 创建授权客户端
 // baseURL 应为服务基础URL，例如：http://localhost:7080/auth
-func NewAuthClient(baseURL, appId, secret string, redisClient *redis.Client, logger *btzap.Logger, opts ...Option) (*AuthClient, error) {
+func NewAuthClient(baseURL, appKey, secret string, redisClient *redis.Client, logger *btzap.Logger, opts ...Option) (*AuthClient, error) {
 	ac := &AuthClient{
 		baseURL:      baseURL,
-		AppId:        appId,
+		AppKey:       appKey,
 		Secret:       secret,
 		redisClient:  redisClient,
 		publicKeys:   []PublicKey{},

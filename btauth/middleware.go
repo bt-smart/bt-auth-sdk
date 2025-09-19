@@ -11,8 +11,8 @@ import (
 const (
 	// ContextUserIDKey 用户ID上下文键
 	ContextUserIDKey = "userId"
-	// ContextClientIDKey 客户端ID上下文键
-	ContextClientIDKey = "clientId"
+	// ContextAppIdKey app 上下文键
+	ContextAppIdKey = "appId"
 )
 
 // Middleware 是一个 Gin 中间件，用于检查 请求头的token
@@ -58,16 +58,16 @@ func (ac *AuthClient) Middleware() gin.HandlerFunc {
 			}
 			// 将 userId 放入请求上下文
 			c.Set(ContextUserIDKey, claims.UserId)
-		} else if claims.TokenType == TokenTypeClient {
-			// 校验客户端对这个接口有没有权限
-			ok := ac.checkClientPermission(requestURL, claims.ClientId)
+		} else if claims.TokenType == TokenTypeApp {
+			// 校验app对这个接口有没有权限
+			ok := ac.checkAppPermission(requestURL, claims.AppId)
 			if !ok {
 				c.JSON(http.StatusForbidden, result.FailWithCodeAndMsg(http.StatusForbidden, "permission denied"))
 				c.Abort()
 				return
 			}
-			// 将 clientId 放入请求上下文
-			c.Set(ContextClientIDKey, claims.ClientId)
+			// 将 appId 放入请求上下文
+			c.Set(ContextAppIdKey, claims.AppId)
 		} else {
 			c.JSON(http.StatusUnauthorized, result.FailWithCodeAndMsg(http.StatusUnauthorized, "not logged in"))
 			c.Abort()
@@ -94,8 +94,8 @@ func (ac *AuthClient) checkUserPermission(url string, userId uint64) bool {
 	return false
 }
 
-func (ac *AuthClient) checkClientPermission(url string, clientId uint64) bool {
-	polices, err := GetClientCache(clientId, ac.redisClient)
+func (ac *AuthClient) checkAppPermission(url string, appId uint64) bool {
+	polices, err := GetAppCache(appId, ac.redisClient)
 	if err != nil || polices == nil {
 		return false
 	}
